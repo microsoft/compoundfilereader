@@ -5,6 +5,7 @@
 #include <memory>
 #include <iostream>
 #include <iomanip>
+#include <limits>
 
 using namespace std;
 
@@ -13,7 +14,7 @@ void ShowUsage()
     cout <<
         "usage:\n"
         "cfb list FILENAME\n"
-        "cfb dump FILENAME STREAM_PATH\n"
+        "cfb dump [-r] FILENAME STREAM_PATH\n"
         "cfb info FILENAME\n"
         "cfb info FILENAME STREAM_PATH\n"
         << endl;

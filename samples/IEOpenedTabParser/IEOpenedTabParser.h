@@ -7,6 +7,7 @@
 #include <compoundfilereader.h>
 #include <utf.h>
 #include <string>
+#include <limits>
 #include <vector>
 
 struct OPENED_TAB_INFO
