@@ -36,6 +36,7 @@
 #include <exception>
 #include <stdexcept>
 #include <functional>
+#include <string>
 
 namespace CFB
 {
