@@ -248,8 +248,8 @@ private:
         {
             utf16string newDir = dir;
             if (dir.length() != 0)
-                newDir.append(1, '\n');
-            newDir.append(entry->name, entry->nameLen / 2);
+                newDir.append(1, '\\');
+            newDir.append(entry->name, entry->nameLen / 2 - 1);
             EnumNodes(GetEntry(entry->childID), currentLevel + 1, maxLevel, newDir, callback);
         }
 
