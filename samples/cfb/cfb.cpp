@@ -9,14 +9,81 @@
 
 using namespace std;
 
+static std::string EscapeSpecialChar(const char* str, bool escape)
+{
+    if (!escape)
+    {
+        return str;
+    }
+
+    std::string ret;
+    for (const char* p = str; *p != '\0'; p++)
+    {
+        if (*p == '\\')
+        {
+            ret += "\\\\";
+        }
+        else if (*p <= 0x1F || *p >= 0x7F)
+        {
+            char buf[8];
+            sprintf(buf, "\\x%02X", *p);
+            ret += buf;
+        }
+        else
+        {
+            ret += *p;
+        }
+    }
+    return ret;
+}
+
+static std::string unescapeSpecialChar(const char* str, bool escape)
+{
+    if (!escape)
+    {
+        return str;
+    }
+
+    std::string ret;
+    for (const char* p = str; *p != '\0'; p++)
+    {
+        if (*p == '\\')
+        {
+            if (*(p + 1) == '\\')
+            {
+                ret += '\\';
+                p++;
+            }
+            else if (*(p + 1) == 'x')
+            {
+                char buf[3];
+                buf[0] = *(p + 2);
+                buf[1] = *(p + 3);
+                buf[2] = '\0';
+                ret += static_cast<char>(strtol(buf, nullptr, 16));
+                p += 3;
+            }
+        }
+        else
+        {
+            ret += *p;
+        }
+    }
+    return ret;
+}
+
 void ShowUsage()
 {
     cout <<
         "usage:\n"
-        "cfb list FILENAME\n"
-        "cfb dump [-r] FILENAME STREAM_PATH\n"
-        "cfb info FILENAME\n"
-        "cfb info FILENAME STREAM_PATH\n"
+        "cfb list [-e] FILENAME\n"
+        "cfb dump [-e] [-r] FILENAME STREAM_PATH\n"
+        "cfb info [-e] FILENAME\n"
+        "cfb info [-e] FILENAME STREAM_PATH\n"
+		"\n"
+		"  -e: escape/unescape special characters when input/output stream path\n"
+        "      \\ <==> \\\\, [special char] <==> \\xXX\n"
+		"  -r: dump raw text instead of hex\n"
         << endl;
 }
 
@@ -62,15 +129,16 @@ void OutputEntryInfo(const CFB::CompoundFileReader& reader, const CFB::COMPOUND_
         << "size: " << entry->size << endl;
 }
 
-const void ListDirectory(const CFB::CompoundFileReader& reader)
+const void ListDirectory(const CFB::CompoundFileReader& reader, bool escape)
 {
     reader.EnumFiles(reader.GetRootEntry(), -1, 
         [&](const CFB::COMPOUND_FILE_ENTRY* entry, const CFB::utf16string& dir, int level)->void
     {
         bool isDirectory = !reader.IsStream(entry);
         std::string name = UTF16ToUTF8(entry->name);
+		std::string escapedName = EscapeSpecialChar(name.c_str(), escape);
         std::string indentstr(level * 4 - 4, ' ');
-        cout << indentstr.c_str() << (isDirectory ? "[" : "") << name.c_str() << (isDirectory ? "]" : "") << endl;
+        cout << indentstr.c_str() << (isDirectory ? "[" : "") << escapedName.c_str() << (isDirectory ? "]" : "") << endl;
     });
 }
 
@@ -105,12 +173,15 @@ const CFB::COMPOUND_FILE_ENTRY* FindStream(const CFB::CompoundFileReader& reader
     return ret;
 }
 
+
+
 int main_internal(int argc, char* argv[])
 {
     const char* cmd = nullptr;
     const char* file = nullptr;
-    const char* streamName = nullptr;
+    std::string streamName;
     bool dumpraw = false;
+    bool escape = false;
     for (int i = 1; i < argc; i++)
     {
         if (i == 1)
@@ -121,12 +192,16 @@ int main_internal(int argc, char* argv[])
         {
             dumpraw = true;
         }
+		else if (strcmp(argv[i], "-e") == 0)
+		{
+			escape = true;
+		}
         else
         {
             if (file == nullptr)
                 file = argv[i];
             else
-                streamName = argv[i];
+				streamName = unescapeSpecialChar(argv[i], escape);
         }
     }
 
@@ -153,11 +228,11 @@ int main_internal(int argc, char* argv[])
 
     if (strcmp(cmd, "list") == 0)
     {
-        ListDirectory(reader);
+        ListDirectory(reader, escape);
     }
-    else if (strcmp(cmd, "dump") == 0 && streamName != nullptr)
+    else if (strcmp(cmd, "dump") == 0 && streamName.length() > 0)
     {
-        const CFB::COMPOUND_FILE_ENTRY* entry = FindStream(reader, streamName);
+        const CFB::COMPOUND_FILE_ENTRY* entry = FindStream(reader, streamName.c_str());
         if (entry == nullptr)
         {
             cerr << "error: stream doesn't exist" << endl;
@@ -179,13 +254,13 @@ int main_internal(int argc, char* argv[])
     }
     else if (strcmp(cmd, "info") == 0)
     {
-        if (streamName == nullptr)
+        if (streamName.length() == 0)
         {
             OutputFileInfo(reader);
         }
         else
         {
-            const CFB::COMPOUND_FILE_ENTRY* entry = FindStream(reader, streamName);
+            const CFB::COMPOUND_FILE_ENTRY* entry = FindStream(reader, streamName.c_str());
             if (entry == NULL)
             {
                 cerr << "error: stream doesn't exist" << endl;
